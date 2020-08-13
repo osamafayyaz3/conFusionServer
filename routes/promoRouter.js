@@ -75,7 +75,7 @@ promoRouter.route('/:promoId')
 })
 
 .delete((req, res, next) => {
-    Dishes.findByIdAndRemove(req.params.dishId)
+    Dishes.findByIdAndRemove(req.params.promoId)
             .then((resp) => {
                 res.statusCode = 200;
                 res.setHeader('Content-Type', 'application/json');
