@@ -38,3 +38,15 @@ exports.jwtPassort = passport.use(new JwtStrategy(opts,
     }))
 
 exports.verifyUser = passport.authenticate('jwt', {sessions: false})
+
+exports.verifyAdmin = (req, res, next) => {
+    console.log(req.user)
+    if (req.user.admin) {
+        next();
+    }
+    else {
+        err = new Error('You are not authorized to perform this operation')
+        err.status = 404;
+        return next(err)
+    }
+}
