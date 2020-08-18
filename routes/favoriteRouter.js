@@ -23,20 +23,33 @@ favoriteRouter.route('/')
     })
 
     .post(cors.corsWithOptions, authenticate.verifyUser, (req, res, next) => {
-        Favorites.create({ user: req.user._id })
-            .then(favorites => {
-                for (let i = 0; i < req.body.length; i++) {
-                    favorites.dishes.push(req.body[i])
-                }
-                favorites.save()
-                    .then(favorites => {
-                        res.statusCode = 200;
-                        res.setHeader('Content-Type', 'application/json');
-                        res.json(favorites);
+        Favorites.findOne({ user: req.user._id }, (err, favorite) => {
+            if (err) return next(err);
+            if (!favorite) {
+                Favorites.create({ user: req.user._id })
+                    .then(favorite => {
+                        for (let i = 0; i < req.body.length; i++) {
+                            if (favorite.dishes.indexOf(req.body[i]._id) < 0) {
+                                favorite.dishes.push(req.body[i])
+                            }
+                        }
+                        favorite.save()
+                            .then(favorite => {
+                                Favorites.findById(favorite._id)
+                                    .populate('user')
+                                    .populate('dishes')
+                                    .then(favorite => {
+                                        res.statusCode = 200;
+                                        res.setHeader('Content-Type', 'application/json');
+                                        res.json(favorite);
+                                    })
+                            }, (err) => next(err))
+                            .catch((err) => next(err))
                     }, (err) => next(err))
                     .catch((err) => next(err))
-            }, (err) => next(err))
-            .catch((err) => next(err))
+            }
+        })
+
     })
 
     .delete(cors.corsWithOptions, authenticate.verifyUser, (req, res, next) => {
@@ -52,8 +65,27 @@ favoriteRouter.route('/')
 favoriteRouter.route('/:dishId')
     .options(cors.corsWithOptions, (req, res) => { res.sendStatus(200); })
     .get(cors.corsWithOptions, authenticate.verifyUser, (req, res, next) => {
-        res.statusCode = 403;
-        res.end('GET operation not supported');
+        Favorites.findOne({ user: req.user._id })
+            .then(favorites => {
+                if (!favorites) {
+                    res.statusCode = 200;
+                    res.setHeader('Content-Type', 'application/json')
+                    return res.json({ "exists": false, "favorites": favorites })
+                }
+                else {
+                    if (favorites.dishes.indexOf(req.params.dishId) < 0) {
+                        res.statusCode = 200;
+                        res.setHeader('Content-Type', 'application/json')
+                        return res.json({ "exists": false, "favorites": favorites })
+                    }
+                    else {
+                        res.statusCode = 200;
+                        res.setHeader('Content-Type', 'application/json')
+                        return res.json({ "exists": true, "favorites": favorites })
+                    }
+                }
+            }, err => next(err))
+            .catch(err => next(err))
     })
 
     .post(cors.corsWithOptions, authenticate.verifyUser, (req, res, next) => {
@@ -69,9 +101,14 @@ favoriteRouter.route('/:dishId')
                     favorite.dishes.push(req.params.dishId)
                     favorite.save()
                         .then(favorite => {
-                            res.statusCode = 200;
-                            res.setHeader('Content-Type', 'application/json');
-                            res.json(favorite);
+                            Favorites.findById(favorite._id)
+                                    .populate('user')
+                                    .populate('dishes')
+                                    .then(favorite => {
+                                        res.statusCode = 200;
+                                        res.setHeader('Content-Type', 'application/json');
+                                        res.json(favorite);
+                                    })
                         }, (err) => next(err))
                         .catch((err) => next(err))
                 }
@@ -85,27 +122,29 @@ favoriteRouter.route('/:dishId')
         Favorites.findOne({ user: req.user._id }).then(favorite => {
             let index = favorite.dishes.indexOf(req.params.dishId);
             if (index != -1) {
-              favorite.dishes.splice(index, 1);
-              favorite.save().then(updatedFavorite => {
-                Favorites.findById(updatedFavorite._id)
-                  .then(
-                    updatedFavorite => {
-                      res.status = 200;
-                      res.setHeader("Content-Type", "application/json");
-                      res.json(updatedFavorite);
-                    },
-                    err => next(err)
-                  )
-                  .catch(err => next(err));
-              });
+                favorite.dishes.splice(index, 1);
+                favorite.save().then(updatedFavorite => {
+                    Favorites.findById(updatedFavorite._id)
+                        .populate('user')
+                        .populate('dishes')
+                        .then(
+                            updatedFavorite => {
+                                res.status = 200;
+                                res.setHeader("Content-Type", "application/json");
+                                res.json(updatedFavorite);
+                            },
+                            err => next(err)
+                        )
+                        .catch(err => next(err));
+                });
             } else {
-              let err = new Error(
-                "Selected dish is not your favorite dish, request aborted"
-              );
-              err.status = 403;
-              return next(err);
+                let err = new Error(
+                    "Selected dish is not your favorite dish, request aborted"
+                );
+                err.status = 403;
+                return next(err);
             }
-          });
+        });
     })
 
 module.exports = favoriteRouter
